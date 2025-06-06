@@ -15,7 +15,7 @@ django-ckeditor
 pymemcache
 pyjwt
 django-crispy-forms
-cryptography
+cryptography==3.3.2
 paramiko
 lxml
 requests
