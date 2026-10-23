@@ -3,9 +3,16 @@ from blogapp.views.register import registerView
 from blogapp.views.index import indexView
 from blogapp.views import *
 from django.urls import path
+from blogapp.views import reporting
 
 
 urlpatterns = [
+    path("reports/search/", reporting.report_search, name="report_search"),
+    path("reports/heading/", reporting.report_heading, name="report_heading"),
+    path("reports/format/", reporting.report_format, name="report_format"),
+    path("reports/safe/search/", reporting.safe_report_search, name="safe_report_search"),
+    path("reports/safe/heading/", reporting.safe_report_heading, name="safe_report_heading"),
+    path("reports/safe/format/", reporting.safe_report_format, name="safe_report_format"),
     path("", indexView.as_view(), name="index"),
     path("blog/", blogView.as_view(), name="blog"),
     path("blog/<pid>/", blogView.as_view(), name="pagination"),
