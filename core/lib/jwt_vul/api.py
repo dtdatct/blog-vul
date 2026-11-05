@@ -28,7 +28,9 @@ def register_algorithm(alg_id, alg_obj):
 
     _algorithms[alg_id] = alg_obj
 
-from .algorithms import Algorithm, _register_default_algorithms  # NOQA
+from .algorithms import (  # NOQA
+    Algorithm, _register_default_algorithms, check_key_algorithm_binding
+)
 _register_default_algorithms()
 
 
@@ -85,11 +87,11 @@ def encode(payload, key, algorithm='HS256', headers=None, json_encoder=None):
     return b'.'.join(segments)
 
 
-def decode(jwt, key='', verify=True, **kwargs):
+def decode(jwt, key='', verify=True, algorithms=None, **kwargs):
     payload, signing_input, header, signature = load(jwt)
     if verify:
         verify_signature(payload, signing_input, header, signature, key,
-                         **kwargs)
+                         algorithms=algorithms, **kwargs)
 
     return payload
 
@@ -134,8 +136,17 @@ def load(jwt):
 
 
 def verify_signature(payload, signing_input, header, signature, key='',
-                     verify_expiration=True, leeway=0, audience=None,
-                     issuer=None):
+                     algorithms=None, verify_expiration=True, leeway=0,
+                     audience=None, issuer=None):
+    """
+    Verify ``signature`` over ``signing_input``.
+
+    ``alg`` is still read from the untrusted token header, so two controls keep
+    that header from choosing what the caller's key means: an optional
+    ``algorithms`` allowlist pinned by the caller, and the algorithm/key-family
+    binding enforced by ``prepare_key`` and
+    ``check_key_algorithm_binding``.
+    """
 
     if isinstance(leeway, timedelta):
         leeway = timedelta_total_seconds(leeway)
@@ -143,9 +154,21 @@ def verify_signature(payload, signing_input, header, signature, key='',
     if not isinstance(audience, (string_types, type(None))):
         raise TypeError('audience must be a string or None')
 
+    if isinstance(algorithms, string_types):
+        algorithms = [algorithms]
+
     try:
-        alg_obj = _algorithms[header['alg']]
+        header_alg = header['alg']
+
+        if algorithms is not None and header_alg not in algorithms:
+            raise DecodeError('Algorithm not allowed')
+
+        alg_obj = _algorithms[header_alg]
+        # prepare_key refuses PEM/OpenSSH key material for HMAC algorithms.
         key = alg_obj.prepare_key(key)
+
+        # A key object may not be re-used for a family the header names.
+        check_key_algorithm_binding(key, header_alg)
 
         if not alg_obj.verify(signing_input, key, signature):
             raise DecodeError('Signature verification failed')
