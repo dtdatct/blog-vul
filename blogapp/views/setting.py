@@ -1,10 +1,10 @@
 from django.views.generic import ListView
 from blogapp.models.Setting import Vul
 from django.shortcuts import render
-import json, jwt
+import jwt
 from django.template import engines
 from core.lib import jwt_vul
-from core.lib.jwt_vul.utils import base64url_decode
+from decouple import config
 
 
 class settingView(ListView):
@@ -29,15 +29,19 @@ class settingView(ListView):
         if request.user.username:
             cookie_check = request.COOKIES["auth"]
             if jwt_confusion and not jwts:
-                ext, fake = cookie_check.split(".", 1)
-                header = base64url_decode(bytes(str(ext), "utf-8"))
-                pubkey = json.loads(header.decode("utf-8"))
-                publickey = pubkey["publickey"]
-                cookie_decode = jwt_vul.decode(cookie_check, publickey)
+                # Verify with the server-side public key. The token header is
+                # attacker-controlled, so key material carried in it must never
+                # be used for verification; that is what let the published
+                # public key act as an HS256 shared secret.
+                with open(config("PUBLICKEY"), "r") as publickey_file:
+                    publickey = publickey_file.read()
+                cookie_decode = jwt_vul.decode(
+                    cookie_check, publickey, algorithms=["RS256"])
 
             elif jwts:
                 key = request.session["key"]
-                cookie_decode = jwt_vul.decode(cookie_check, key)
+                cookie_decode = jwt_vul.decode(
+                    cookie_check, key, algorithms=["HS256"])
 
             else:
 
