@@ -3,7 +3,7 @@ from django.shortcuts import render, redirect
 from .login_form import LoginForm
 from blogapp.models.Setting import Vul
 from django.contrib.auth import authenticate, login
-from django.utils.http import http_date
+from django.utils.http import http_date, url_has_allowed_host_and_scheme
 import pickle, base64, jwt, time, json
 from decouple import config
 from django.views.generic import TemplateView
@@ -86,7 +86,15 @@ class loginView(TemplateView):
                     max_age = self.request.session.get_expiry_age()
                     expires_time = time.time() + max_age
                     expires = http_date(expires_time)
-                    response = redirect(self.request.GET["next"])
+                    next_url = self.request.GET.get("next")
+                    if url_has_allowed_host_and_scheme(
+                        next_url,
+                        allowed_hosts={self.request.get_host()},
+                        require_https=self.request.is_secure(),
+                    ):
+                        response = redirect(next_url)
+                    else:
+                        response = redirect("/")
                     response.set_cookie("auth", cookie_name, max_age=max_age, expires=expires)
                     if dese:
                         if rememberMe:
