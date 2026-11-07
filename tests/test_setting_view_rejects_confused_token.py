@@ -25,6 +25,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from blogapp.models.Setting import Vul
+from blogapp.views.setting import settingView
 from core.lib import jwt_vul
 from core.lib.jwt_vul.exceptions import DecodeError
 
@@ -92,8 +93,15 @@ class SettingViewKeyConfusion(TestCase):
 
     def _post_setting(self, auth_token):
         self.client.cookies['auth'] = auth_token
-        body = {row['name']: 'yes' for row in Vul.objects.values('name')}
-        return self.client.post(reverse('setting'), data=body)
+        # settingView.nameVuls is a class attribute whose queryset is
+        # evaluated once, on the first request that reaches the write loop,
+        # and then cached for the whole test process. Post the union of the
+        # live rows and that roster so this test does not depend on which
+        # test ran first.
+        names = {row['name'] for row in Vul.objects.values('name')}
+        names.update(row['name'] for row in settingView.nameVuls)
+        return self.client.post(reverse('setting'),
+                                data={name: 'yes' for name in names})
 
     def test_legitimate_rs256_cookie_is_accepted(self):
         """Negative control: the fix must not lock admins out."""
